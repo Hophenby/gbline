@@ -9,7 +9,7 @@ from PyQt6 import QtCore
 import cv2
 
 from PyQt6.QtWidgets import QBoxLayout, QButtonGroup, QFileDialog, QHBoxLayout, QInputDialog, QMainWindow, QSizePolicy, QSpacerItem, QTextEdit, QVBoxLayout, QApplication,  QWidget, QLabel,QPushButton,QTableWidget,QTableWidgetItem
-from PyQt6.QtGui import QCursor, QFont, QGuiApplication, QIcon, QImage, QKeyEvent,QPixmap,QPen,QPainter,QColor,QMouseEvent,QPaintEvent
+from PyQt6.QtGui import QCursor, QFont, QGuiApplication, QIcon, QImage, QKeyEvent,QPixmap,QPen,QPainter,QColor,QMouseEvent,QPaintEvent,QClipboard
 from PyQt6.QtCore import QEvent, QSize, Qt,QRect,QPoint, pyqtSignal
 import numpy as np
 
@@ -575,11 +575,20 @@ class RectLabel(QLabel):
             self.dataWidget.updateData(self.commandStack,self.graphPos_,self.getAlphaMap())
             self.update()
 
-    def keyPressEvent(self, ev: QKeyEvent | None) -> None:
-         self.keyStates[ev.key()] = KEY_HOLDING
-         self.update()
-         return super().keyPressEvent(ev)
+    def keyPressEvent(self, ev: QtGui.QKeyEvent):
+        if ev.matches(QtGui.QKeySequence.StandardKey.Paste):
+            clipboard = QApplication.clipboard()
+            self.parseClipboard(clipboard=clipboard)
+            
+         
+        self.keyStates[ev.key()] = KEY_HOLDING
+        self.update()
+        return super().keyPressEvent(ev)
     
+    def parseClipboard(self,clipboard:QClipboard):
+        if clipboard.mimeData().hasImage():
+            image = clipboard.image()
+
     def keyReleaseEvent(self, a0: QKeyEvent | None) -> None:
          self.keyStates[a0.key()] = KEY_RELEASED
          self.update()
