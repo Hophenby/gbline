@@ -41,6 +41,7 @@ class InteractivePlot(QMainWindow):
 
         # 创建一个QLabel对象，并将OpenCV图像显示在其中
         self.label = RectLabel(self,os.path.join(self.imgdir,self.imgname))
+        self.label.newfigConnect(self.new_widget)
 
         layout = QVBoxLayout()
         layout.addWidget(self.label)
@@ -83,5 +84,6 @@ class InteractivePlot(QMainWindow):
         newwidget = RectLabel(self,img_path)
         self.setCentralWidget(newwidget)  # 将新的小部件添加到当前布局管理器中
         self.label=newwidget
+        self.label.newfigConnect(self.new_widget)
         self.update()
 

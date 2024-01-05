@@ -1,5 +1,6 @@
 import os,re
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QImage
+from PyQt6.QtCore import QPointF, Qt,QRect,QPoint
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -119,23 +120,55 @@ class ImgFigure:
         if type(img)==type("   ") and os.path.exists(img):
             img = cv2.imread(img) 
         self.img=img
-        self._oldcrop=self.img_crop()
+        self._oldcrop=self.img_crop() or (1,2,3,4,5,6,7,8)
         self._setcap(self._oldcrop)
         #self.find_line(6)
+
+    @classmethod
+    def fromQImage(cls, qimage: QImage):
+        # 获取 QImage 的宽度和高度
+        width = qimage.width()
+        height = qimage.height()
+
+        # 将 QImage 转换为 numpy 数组
+        buffer = qimage.constBits()
+        buffer.setsize(qimage.sizeInBytes())  # 设置缓冲区大小
+        arr = np.frombuffer(buffer, dtype=np.uint8).reshape((height, width, 4))
+
+        # 将 numpy 数组转换为 OpenCV 图像
+        img = cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
+
+        # 创建并返回 ImgFigure 对象
+        return cls(img)
+
 
     
     def getWidth(self,img=None):
         if img is None: img=self.img.copy()
         height, width, channel = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).shape
         return width
+    
     def getHeight(self,img=None):
         if img is None: img=self.img.copy()
         height, width, channel = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).shape
         return height
+    
     def getBytesPerLine(self,img=None):
         if img is None: img=self.img.copy()
         height, width, channel = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).shape
         return channel * width
+    
+    def remapImg(self,  x1,y1,x2,y2,
+                        x1_value,y1_value,x2_value,y2_value):
+        x1,x2=max(0,min(self.getWidth()-1,x1,x2)),min(self.getWidth()-1,max(0,x1,x2))
+        y1,y2=min(self.getHeight()-1,max(0,y1,y2)),max(0,min(self.getHeight()-1,y1,y2))
+        x1_value,x2_value=min(x1_value,x2_value),max(x1_value,x2_value)
+        y1_value,y2_value=min(y1_value,y2_value),max(y1_value,y2_value)
+        
+        self._oldcrop=(x1,x2,x1_value,x2_value,
+                      y1,y2,y1_value,y2_value)
+        self._setcap(self._oldcrop)
+
     def recapImg(self,x1,x2,y1,y2):
         self._setcap(self._oldcrop)
         x1,x2=max(0,min(self.getWidth()-1,x1,x2)),min(self.getWidth()-1,max(0,x1,x2))
@@ -202,27 +235,34 @@ class ImgFigure:
         print("\nfiltered y")
         print(pd.DataFrame(y_list).rename({0:"y",1:"OCR value"},axis=1).to_markdown())
 
-        x_array=np.array(x_list)
-        #print(x_list)
-        x1=min(x_array[:][:,0])
-        x2=max(x_array[:][:,0])
-        index_1=np.where(x_array[:][:,0]==x1)[0][0]
-        index_2=np.where(x_array[:][:,0]==x2)[0][0]
-        x1_value=x_array[index_1][1]
-        x2_value=x_array[index_2][1]
+        try:
+            x_array=np.array(x_list)
+            #print(x_list)
+            x1=min(x_array[:][:,0])
+            x2=max(x_array[:][:,0])
+            index_1=np.where(x_array[:][:,0]==x1)[0][0]
+            index_2=np.where(x_array[:][:,0]==x2)[0][0]
+            x1_value=x_array[index_1][1]
+            x2_value=x_array[index_2][1]
 
-        y_array=np.array(y_list)
-        y1=min(y_array[:][:,0])
-        y2=max(y_array[:][:,0])
-        index_1=np.where(y_array[:][:,0]==y1)[0][0]
-        index_2=np.where(y_array[:][:,0]==y2)[0][0]
-        y1_value=y_array[index_1][1]
-        y2_value=y_array[index_2][1]
-        
+            y_array=np.array(y_list)
+            y1=min(y_array[:][:,0])
+            y2=max(y_array[:][:,0])
+            index_1=np.where(y_array[:][:,0]==y1)[0][0]
+            index_2=np.where(y_array[:][:,0]==y2)[0][0]
+            y1_value=y_array[index_1][1]
+            y2_value=y_array[index_2][1]
+            
 
 
-        y1,y2=int(y1),int(y2)
-        return x1,x2,x1_value,x2_value,y1,y2,y1_value,y2_value
+            y1,y2=int(y1),int(y2)
+            return x1,x2,x1_value,x2_value,y1,y2,y1_value,y2_value
+        except IndexError as e:
+            print(f"error No data parsed:[{e.__class__.__name__}] {e}")
+            return
+        except Exception as e:
+            print(f"error in image crop:[{e.__class__.__name__}] {e}")
+            raise
     
     def find_color_num(self,max_num=10,img=None,cover_gray=True):
         if img is None: img=self.img.copy()
@@ -456,7 +496,7 @@ class ImgFigure:
         h,s,v=colorhsv
         return self.getColorMask(img=img,color=ImageColor.getrgb(f"hsv({h*2},{s/255:%},{v/255:%})"),threshold=threshold)
     
-    #TODO 什么时候就做返回颜色遮罩哇啊啊啊啊啊啊啊啊啊啊哇啊啊啊啊啊啊啊啊啊哇啊啊啊啊啊啊啊啊啊啊啊哇啊哇哇啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊
+    #什么时候就做返回颜色遮罩哇啊啊啊啊啊啊啊啊啊啊哇啊啊啊啊啊啊啊啊啊哇啊啊啊啊啊啊啊啊啊啊啊哇啊哇哇啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊
     #大卸八块搬迁一下上面已经有的东西
     def getMaskedImg(self,color:QColor|tuple[int,int,int]|str="#ffffff",threshold=5):
         img=self.img.copy()[self.y1:self.y2,

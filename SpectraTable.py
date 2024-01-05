@@ -32,6 +32,7 @@ class SpectraTable(QTableWidget):
         if hasattr(parent,"q_image"): self.q_image=parent.q_image
         self.data=None
         self.commandstack=None
+        self.graphPos_=None
         self.previewFig=plt.figure()
         self.canvasLabel=CanvasLabel(parent,self.previewFig)
         self.canvasLabel.setGeometry(900,50,877,666)
@@ -93,7 +94,7 @@ class SpectraTable(QTableWidget):
         cmap=ListedColormap([(*(np.array(_hextoRGB(hex_))/255),amap.get(hex_,defaultAlpha)/255) for hex_ in dfsorted.columns])
         dfsorted.plot(ax=ax,xticks=np.linspace(xmin,xmax,11),yticks=np.linspace(ymin,ymax,5),legend=False,colormap=cmap)
 
-    def updateData(self,commandStack:GrabitStack,graghPos_,alphaMap:dict={}):
+    def updateData(self,commandStack:GrabitStack=None,graghPos_=None,alphaMap:dict={}):
         """
         Updates the data in the table.
 
@@ -106,7 +107,8 @@ class SpectraTable(QTableWidget):
             None
         """
         self.commandstack=commandStack
-        if commandStack.isEmpty():return
+        self.graphPos_=graghPos_
+        if (self.commandstack is None) or (self.graphPos_ is None) or commandStack.isEmpty():return
         point_map={}
         self.colormap=[]
         for element in (commandStack):

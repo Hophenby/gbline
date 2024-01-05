@@ -8,7 +8,7 @@ from PyQt6 import QtGui
 from PyQt6 import QtCore
 import cv2
 
-from PyQt6.QtWidgets import QBoxLayout, QButtonGroup, QFileDialog, QHBoxLayout, QInputDialog, QMainWindow, QSizePolicy, QSpacerItem, QTextEdit, QVBoxLayout, QApplication,  QWidget, QLabel,QPushButton,QTableWidget,QTableWidgetItem
+from PyQt6.QtWidgets import QBoxLayout, QButtonGroup, QFileDialog, QHBoxLayout, QInputDialog, QMainWindow, QSizePolicy, QSpacerItem, QTextEdit, QVBoxLayout, QApplication,  QWidget, QLabel,QPushButton,QTableWidget,QTableWidgetItem,QMessageBox
 from PyQt6.QtGui import QCursor, QFont, QGuiApplication, QIcon, QImage, QKeyEvent,QPixmap,QPen,QPainter,QColor,QMouseEvent,QPaintEvent,QClipboard
 from PyQt6.QtCore import QEvent, QSize, Qt,QRect,QPoint, pyqtSignal
 import numpy as np
@@ -17,6 +17,7 @@ from ImgFigure import ImgFigure
 from figuregrabbing import GrabitEraserLine, GrabitLine,GrabitStack
 from ColorSelector import ColorSelector, _hextoRGB
 from SpectraTable import SpectraTable
+from DoubleLineEdit import DoubleLineEdit
 
 
 
@@ -72,7 +73,7 @@ class EmittingStream(QtCore.QObject):
 class RectLabel(QLabel):
     
     
-    def __init__(self,parent,img_path:str=""):
+    def __init__(self,parent,img_path:str|QImage=""):
         super().__init__(parent)
 
         #self.setGeometry(10,10,width+200, height+100)
@@ -83,10 +84,16 @@ class RectLabel(QLabel):
         sys.stdout.textWritten.connect(self.normal_output_written)
 
         now=str(time.strftime("%Y-%m-%d_%H-%M-%S",time.localtime()))
-        self.csvdir=os.path.join(*(match.group(1) for match in re.finditer(r"(.*)[/\\]", img_path)))
+        self.csvdir=""
+        if type(img_path)==str and img_path:
+            self.csvdir=os.path.join(*(match.group(1) for match in re.finditer(r"^(.*)[/\\]", img_path)))
         self.csvfilename=now+".csv"
 
-        self.imgFigure=ImgFigure(img_path)
+        if type(img_path)==str:
+            self.imgFigure=ImgFigure(img_path)
+        if type(img_path)==QImage:
+            self.imgFigure=ImgFigure.fromQImage(img_path)
+        
         # 创建一个OpenCV图像
         image = self.imgFigure.img
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -137,7 +144,9 @@ class RectLabel(QLabel):
         self.grabbingColor="#000000"
         self.commandStack=GrabitStack()
         self.lastdrawing=GrabitLine(graghPos_=self.graphPos_)
-
+        
+        self.imgremaptext=DoubleLineEdit(self)
+        self.imgremaptext.connectRemapFunction(self.remapFig)
         
         self.colorSelector=ColorSelector(self,column_mode=True)
         self.colorSelector.setHighlight(self.grabbingColor)
@@ -145,12 +154,13 @@ class RectLabel(QLabel):
         self.dataWidget.connect_colorselector(self.colorSelector)
 
         #啊哇哇哇哇哇哇哇啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊哇啊
+        self.new_widget=None
         
 
         '''(
             ((xcl-parent_x-xshift)/hscale-self.imgFigure.x1)/self.imgFigure.num_x*self.imgFigure.value_x+,
             ((ycl-parent_y-yshift)/vscale-self.imgFigure.y1)/self.imgFigure.num_y*self.imgFigure.value_y+self.imgFigure.y1_value)'''
-    #TODO 按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组    
+    #按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组    
         self.buttonGroup=QButtonGroup(self)
         for i in range(3):
             button=QPushButton(self)
@@ -179,10 +189,9 @@ class RectLabel(QLabel):
         self.buttonAddColor.setGeometry(10,390,100,50)
         self.buttonAddColor.clicked.connect(self.colorSelector.appendNew)
 
-        if self.parent():
-            self.buttonNew=QPushButton("New figure",self)
-            self.buttonNew.setGeometry(10,50,100,50)
-            self.buttonNew.clicked.connect(parent.select_path)
+        self.buttonNew=QPushButton("New figure",self)
+        self.buttonNew.setGeometry(10,50,100,50)
+        self.buttonNew.clicked.connect(self.select_path)
 
         self.installEventFilter(self)
         
@@ -254,7 +263,7 @@ class RectLabel(QLabel):
         if self.keyStates.get(Qt.Key.Key_Control) == KEY_HOLDING:
             ctrlcolor = self.grabbingColor
 
-        if event.button() == Qt.MouseButton.RightButton:
+        if  not self.csvdir or event.button() == Qt.MouseButton.RightButton:
             dialog = QFileDialog(directory=self.csvdir)
             dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
             dialog.setNameFilter("CSV(*.csv)")
@@ -455,16 +464,21 @@ class RectLabel(QLabel):
         QGuiApplication.instance().setOverrideCursor(custom_cursor)
 
 
-    #TODO 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 鼠标事件 
-            #整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理#整理
-        
-
+    def remapFig(self,*_remap):
+        p1,p2,(x1v,y1v),(x2v,y2v)=_remap
+        x1,x2=(p1.x()-self.xshift)/self.hscale,(p2.x()-self.xshift)/self.hscale
+        y1,y2=(p1.y()-self.yshift)/self.vscale,(p2.y()-self.yshift)/self.vscale
+        (x1),(x2),(y1),(y2)=int(x1),int(x2),int(y1),int(y2)
+        self.imgFigure.remapImg((x1),(y1),(x2),(y2)
+                      ,x1v,y1v,x2v,y2v)
         
     def mousePressEvent(self, event:QMouseEvent):
         xy = event.pos()
         xcl,ycl=xy.x(),xy.y()
         print(f'Clicked at position ({xcl}, {ycl})')
         print(f'aa({self.graphPos_(xcl,ycl)[0]}, {self.graphPos_(xcl,ycl)[1]})')
+
+        self.imgremaptext.hide()
 
         def isMouseInScreen(mouseButton): 
             return event.button() == mouseButton and self.geometry().contains(xy)
@@ -477,6 +491,11 @@ class RectLabel(QLabel):
             if isMouseInScreen(Qt.MouseButton.RightButton)and not self.flag_Dragging:
                 self.flag_DraggingRight = True
                 self.dragRight_start_pos = xy
+
+
+            if isMouseInScreen(Qt.MouseButton.MiddleButton)and not self.flag_Dragging:
+                pos = self.mapFromGlobal(event.globalPosition())
+                self.imgremaptext.showAtPos(pos)
         else:
             self.saved=False
 
@@ -586,8 +605,41 @@ class RectLabel(QLabel):
         return super().keyPressEvent(ev)
     
     def parseClipboard(self,clipboard:QClipboard):
+        '''     剪贴板图片->新图
+
+                剪贴板文字->追加信息'''
         if clipboard.mimeData().hasImage():
+            if self.new_widget is None:return
             image = clipboard.image()
+            messagebox=QMessageBox(text="create new figure?")
+            messagebox.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.Cancel)
+            response=messagebox.exec()
+            if response==QMessageBox.StandardButton.Yes and type(self.parent()):
+                parent=self.parent()
+                self.new_widget(image)
+            pass
+        if clipboard.mimeData().hasText():
+            text = clipboard.text()
+            self.commandStack.setInfoFromColor(self.grabbingColor,text)
+            self.dataWidget.updateData(self.commandStack,self.graphPos_)
+
+    def newfigConnect(self,slot):
+        self.new_widget=slot
+
+    def select_path(self):
+        """
+        Opens a file dialog to select an image file.
+
+        This method sets the `imgdir` and `imgname` attributes based on the selected file.
+        It also calls the `new_widget` method to update the displayed image.
+        """
+        if self.new_widget is None:return
+        dialog=QFileDialog()
+        dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+            
+        directory,filetype = dialog.getOpenFileName(self, 'Select Directory',filter="img(*)")
+        if directory:
+            self.new_widget(directory)
 
     def keyReleaseEvent(self, a0: QKeyEvent | None) -> None:
          self.keyStates[a0.key()] = KEY_RELEASED
