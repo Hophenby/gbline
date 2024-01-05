@@ -120,7 +120,12 @@ class ImgFigure:
         if type(img)==type("   ") and os.path.exists(img):
             img = cv2.imread(img) 
         self.img=img
-        self._oldcrop=self.img_crop() or (1,2,3,4,5,6,7,8)
+        try:
+            self._oldcrop=self.img_crop()  or (1,2,3,4,5,6,7,8)
+        except Exception as e:
+            print("Find nothing from image")
+            print(f"[{e.__class__.__name__}] {e}")
+            self._oldcrop=(1,2,3,4,5,6,7,8)
         self._setcap(self._oldcrop)
         #self.find_line(6)
 
@@ -136,7 +141,7 @@ class ImgFigure:
         arr = np.frombuffer(buffer, dtype=np.uint8).reshape((height, width, 4))
 
         # 将 numpy 数组转换为 OpenCV 图像
-        img = cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
+        img = cv2.cvtColor(arr, cv2.COLOR_RGBA2RGB)
 
         # 创建并返回 ImgFigure 对象
         return cls(img)

@@ -1,8 +1,6 @@
 
 import os
 import typing
-from PyQt6 import QtGui
-from PyQt6.QtCore import QEvent
 import numpy as np
 from figuregrabbing import GrabitLine,GrabitStack, _hextoRGB
 import pandas as pd
@@ -12,8 +10,9 @@ import matplotlib.cm as cm
 from matplotlib.colors import ListedColormap
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QImage,QPixmap,QPen,QPainter,QColor,QMouseEvent,QPaintEvent
-from PyQt6.QtWidgets import QTableWidget,QTableWidgetItem, QLabel
+from PyQt6.QtWidgets import QTableWidget,QTableWidgetItem, QLabel, QFileDialog
 
 from ColorSelector import ColorSelector
 
@@ -37,11 +36,53 @@ class SpectraTable(QTableWidget):
         self.canvasLabel=CanvasLabel(parent,self.previewFig)
         self.canvasLabel.setGeometry(900,50,877,666)
         self.colorSelector=None
+        self.setGrabbingColor=None
+        self.csvdir=""
 
         self.itemChanged.connect(self.setData)
         
     def connect_colorselector(self,colorSelector:ColorSelector):
-        self.colorSelector=colorSelector
+        self.colorSelector=colorSelector    
+    def connect_grabbingColor(self,grabbingColorSetter):
+        self.setGrabbingColor=grabbingColorSetter
+
+    def mousePressEvent(self, e: QMouseEvent | None) -> None:
+        index = self.indexAt(e.pos())
+        r = index.row()
+        c = index.column()
+        if e.button() == Qt.MouseButton.RightButton:
+            # 获取鼠标右键点击的单元格坐标
+            
+            try:
+                color=self.data.columns[r-1]
+                print(color)
+                self.setGrabbingColor(color)
+
+            except Exception as e:
+                print("failed to select color from table")
+                print(f"{e.__class__.__name__} : {str(e)}")
+                return
+        if e.button() == Qt.MouseButton.MiddleButton:
+            # 获取鼠标右键点击的单元格坐标
+            
+            try:
+                color=self.data.columns[r-1]
+                dialog = QFileDialog()
+                dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+                dialog.setNameFilter("CSV(*.csv)")
+
+                if os.path.exists(self.csvdir):
+                    dialog.setDirectory(self.csvdir)
+
+                dialog.setDefaultSuffix(".csv")
+                directory, filetype = dialog.getSaveFileName(self, 'Select Directory', self.csvdir, "CSV(*.csv)")
+                if directory:
+                    self.rawsavecsv(self.data[[color]],directory)
+                    print("data saved")
+            except Exception as e:
+                print(f"{e.__class__.__name__} : {str(e)}")
+                return
+        return super().mousePressEvent(e)
 
     def setData(self, item:QTableWidgetItem) :
         """
@@ -66,9 +107,6 @@ class SpectraTable(QTableWidget):
             print(f"{e.__class__.__name__} : {str(e)}")
             return
         
-        
-        
-
 
     def plot_dataframe(self, dataframe:pd.DataFrame,xmin=0,xmax=800,ymin=0,ymax=2,amap:dict={}):
         """
@@ -170,8 +208,7 @@ class SpectraTable(QTableWidget):
         if not(self.data is None):
             self.plot_dataframe(self.data,x_min,x_max,y_min,y_max,alphaMap)
         #self.setItem()
-    def paintEvent(self, e: QPaintEvent | None) -> None:
-        return super().paintEvent(e)
+    
     '''
     def update(self) -> None:
         self.canvasLabel.update()
@@ -194,12 +231,25 @@ class SpectraTable(QTableWidget):
                 data=self.data[[color]]
             print({c:self.commandstack.findInfoFromColor(c) or c for c in data.columns})
             if os.path.exists(filepath):
-                data.rename(columns={c:self.commandstack.findInfoFromColor(c) or c for c in data.columns})\
-                    .to_csv(os.path.join(filepath,filename),index=True)
+                self.rawsavecsv(data,os.path.join(filepath,filename))
                 return True
         except Exception as e:
             print(f"[{e.__class__.__name__}] {str(e)}")
             return
+        
+    def rawsavecsv(self, data: pd.DataFrame, path):
+        """
+        Save the given DataFrame as a CSV file.
+
+        Args:
+            data (pd.DataFrame): The DataFrame to be saved.
+            path (str): The path where the CSV file will be saved.
+
+        Returns:
+            None
+        """
+        data.rename(columns={c: self.commandstack.findInfoFromColor(c) or c for c in data.columns})\
+            .to_csv(path, index=True)
         
 
 

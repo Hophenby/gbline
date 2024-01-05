@@ -79,10 +79,54 @@ class RectLabel(QLabel):
         #self.setGeometry(10,10,width+200, height+100)
         self.logbox=QTextEdit(self)
         self.logbox.setFont(QFont("Courier"))
+        self.logbox.setReadOnly(True)
+        self.logbox.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         
         sys.stdout = EmittingStream()
         sys.stdout.textWritten.connect(self.normal_output_written)
 
+        if not img_path: 
+            img_path=QImage(500,500,QImage.Format.Format_RGB32)
+            img_path.fill(QColor(255,255,255))
+        
+        self.figure_init(img_path)
+
+        self.buttonGroup=QButtonGroup(self)
+        for i in range(3):
+            button=QPushButton(self)
+            button.setGeometry(10,110+70*i,100,50)
+            '''button.clicked.connect(lambda x:self.switch_dragEvent(i))#绑的怎么是同一个函数改改改改改改
+            print(self.switch_dragEvent(i))
+            print(self.drag_state)'''
+            modetext={STATE_DRAG:"drag",STATE_GRAB:"grab",STATE_ERASE:"erase"}
+            button.setText(f"switch to\n{modetext[i]} mode")
+            self.buttonGroup.addButton(button,i)
+
+        self.buttonGroup.button(1).clicked.connect(lambda _:self.switch_dragEvent(1))
+        self.buttonGroup.button(2).clicked.connect(lambda _:self.switch_dragEvent(2))
+        self.buttonGroup.button(0).clicked.connect(lambda _:self.switch_dragEvent(0))
+
+        self.buttonAnalyse=QPushButton("analyse",self)
+        self.buttonAnalyse.setGeometry(10,320,100,50)
+        self.buttonAnalyse.clicked.connect(self.analyseEvent)
+
+        self.buttonCsvDir=QPushButton("save csv",self)
+        self.buttonCsvDir.setToolTip(f"{self.csvdir}")
+        self.buttonCsvDir.setGeometry(10,390,100,50)
+        self.buttonCsvDir.mousePressEvent=self.csvdirEvent
+
+        self.buttonAddColor=QPushButton("add color",self)
+        self.buttonAddColor.setGeometry(10,390,100,50)
+        self.buttonAddColor.clicked.connect(self.appendNew)
+
+        self.buttonNew=QPushButton("New figure",self)
+        self.buttonNew.setGeometry(10,50,100,50)
+        self.buttonNew.clicked.connect(self.select_path)
+
+        self.installEventFilter(self)
+        self.layout_init()
+        
+    def figure_init(self,img_path):
         now=str(time.strftime("%Y-%m-%d_%H-%M-%S",time.localtime()))
         self.csvdir=""
         if type(img_path)==str and img_path:
@@ -124,24 +168,25 @@ class RectLabel(QLabel):
 
         self.dataWidget=SpectraTable(parent=self)
         self.dataWidget.setGeometry(120,650,1000,200)
+        self.dataWidget.connect_grabbingColor(self.setGrabbingColor)
+
         self.saved=True
 
         parent_x,parent_y=self.mapToParent(self.rect().topLeft()).x(),self.mapToParent(self.rect().topLeft()).y()
-        
-
+                #-parent_x
+                #-parent_y
         self.graphPos_=lambda xcl,ycl:(
-            ((xcl-parent_x-self.xshift)/self.hscale-self.imgFigure.x1)/self.imgFigure.num_x*self.imgFigure.value_x+self.imgFigure.x1_value,
-            ((ycl-parent_y-self.yshift)/self.vscale-self.imgFigure.y1)/self.imgFigure.num_y*self.imgFigure.value_y+self.imgFigure.y1_value)
-
-
+            ((xcl-self.xshift)/self.hscale-self.imgFigure.x1)/self.imgFigure.num_x*self.imgFigure.value_x+self.imgFigure.x1_value,
+            ((ycl-self.yshift)/self.vscale-self.imgFigure.y1)/self.imgFigure.num_y*self.imgFigure.value_y+self.imgFigure.y1_value)
+                                                                                                                        #+parent_x
+                                                                                                                        #+parent_y
         self.parentPos_=lambda xcl,ycl:(
-            int(((xcl-self.imgFigure.x1_value)/self.imgFigure.value_x*self.imgFigure.num_x+self.imgFigure.x1)*self.hscale+parent_x+self.xshift),
-            int(((ycl-self.imgFigure.y1_value)/self.imgFigure.value_y*self.imgFigure.num_y+self.imgFigure.y1)*self.vscale+parent_y+self.yshift))
+            int(((xcl-self.imgFigure.x1_value)/self.imgFigure.value_x*self.imgFigure.num_x+self.imgFigure.x1)*self.hscale+self.xshift),
+            int(((ycl-self.imgFigure.y1_value)/self.imgFigure.value_y*self.imgFigure.num_y+self.imgFigure.y1)*self.vscale+self.yshift))
         
 
         self.flag_Grabbing=False
         self.flag_GrabbingRight = False
-        self.grabbingColor="#000000"
         self.commandStack=GrabitStack()
         self.lastdrawing=GrabitLine(graghPos_=self.graphPos_)
         
@@ -149,8 +194,9 @@ class RectLabel(QLabel):
         self.imgremaptext.connectRemapFunction(self.remapFig)
         
         self.colorSelector=ColorSelector(self,column_mode=True)
-        self.colorSelector.setHighlight(self.grabbingColor)
         self.colorSelector.setGeometry(10,460,100,300)
+        self.grabbingColor="#000000"
+        self.colorSelector.setHighlight(self.grabbingColor)
         self.dataWidget.connect_colorselector(self.colorSelector)
 
         #啊哇哇哇哇哇哇哇啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊哇啊
@@ -161,41 +207,10 @@ class RectLabel(QLabel):
             ((xcl-parent_x-xshift)/hscale-self.imgFigure.x1)/self.imgFigure.num_x*self.imgFigure.value_x+,
             ((ycl-parent_y-yshift)/vscale-self.imgFigure.y1)/self.imgFigure.num_y*self.imgFigure.value_y+self.imgFigure.y1_value)'''
     #按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组按钮组    
-        self.buttonGroup=QButtonGroup(self)
-        for i in range(3):
-            button=QPushButton(self)
-            button.setGeometry(10,110+70*i,100,50)
-            '''button.clicked.connect(lambda x:self.switch_dragEvent(i))#绑的怎么是同一个函数改改改改改改
-            print(self.switch_dragEvent(i))
-            print(self.drag_state)'''
-            modetext={STATE_DRAG:"drag",STATE_GRAB:"grab",STATE_ERASE:"erase"}
-            button.setText(f"switch to\n{modetext[i]} mode")
-            self.buttonGroup.addButton(button,i)
-
-        self.buttonGroup.button(1).clicked.connect(lambda _:self.switch_dragEvent(1))
-        self.buttonGroup.button(2).clicked.connect(lambda _:self.switch_dragEvent(2))
-        self.buttonGroup.button(0).clicked.connect(lambda _:self.switch_dragEvent(0))
-
-        self.buttonAnalyse=QPushButton("analyse",self)
-        self.buttonAnalyse.setGeometry(10,320,100,50)
-        self.buttonAnalyse.clicked.connect(self.analyseEvent)
-
-        self.buttonCsvDir=QPushButton("save csv",self)
-        self.buttonCsvDir.setToolTip(f"{self.csvdir}")
-        self.buttonCsvDir.setGeometry(10,390,100,50)
-        self.buttonCsvDir.mousePressEvent=self.csvdirEvent
-
-        self.buttonAddColor=QPushButton("add color",self)
-        self.buttonAddColor.setGeometry(10,390,100,50)
-        self.buttonAddColor.clicked.connect(self.colorSelector.appendNew)
-
-        self.buttonNew=QPushButton("New figure",self)
-        self.buttonNew.setGeometry(10,50,100,50)
-        self.buttonNew.clicked.connect(self.select_path)
-
-        self.installEventFilter(self)
-        
+    
+    def layout_init(self):
         #布局整改 下整改令了
+        
         buttonlayout=QVBoxLayout()
         buttonlayout.setAlignment(Qt.AlignmentFlag.AlignTop|Qt.AlignmentFlag.AlignLeft)
         buttonlayout.addWidget(self.buttonNew)
@@ -226,12 +241,21 @@ class RectLabel(QLabel):
         canvaslayout.addLayout(canloglayout)
         #canvaslayout.addWidget(canvas)
         
-        mainlayout=QVBoxLayout()
-        #mainlayout.addLayout(buttonlayout)
-        mainlayout.addLayout(canvaslayout)
-        mainlayout.addLayout(tablelayout)
+        if self.layout():
+            layout=self.layout()
+            while layout.count():
+                item=layout.takeAt(0)
+                layout.removeItem(item)
+            layout.addLayout(canvaslayout)
+            layout.addLayout(tablelayout)
+        else :
+            mainlayout=QVBoxLayout()
+            #mainlayout.addLayout(buttonlayout)
+            mainlayout.addLayout(canvaslayout)
+            mainlayout.addLayout(tablelayout)
+            
+            self.setLayout(mainlayout)
 
-        self.setLayout(mainlayout)
 
     def normal_output_written(self, text):
         """
@@ -288,6 +312,8 @@ class RectLabel(QLabel):
             self.saved = True
             print("data saved")
 
+    def appendNew(self):
+        return self.colorSelector.appendNew()
 
     def analyse(self, n: int):
         """
@@ -311,8 +337,7 @@ class RectLabel(QLabel):
             self.colorSelector.append(col)
             self.dataWidget.updateData(self.commandStack, self.graphPos_)
 
-        self.grabbingColor = firstcolor or self.grabbingColor
-        self.colorSelector.setHighlight(self.grabbingColor)
+        self.setGrabbingColor(firstcolor or self.grabbingColor)
 
     def analyseEvent(self):
         try:
@@ -508,13 +533,16 @@ class RectLabel(QLabel):
 
             color=self.colorSelector.getColor(xy)
             if color:
-                self.grabbingColor=color
-                self.colorSelector.setHighlight(color)
+                self.setGrabbingColor(color)
 
-        
+    def setGrabbingColor(self,color):
+        self.grabbingColor=color
+        self.colorSelector.setHighlight(color)
                 
 
     def mouseMoveEvent(self, event:QMouseEvent):
+        #print(self.mousePos)
+        #if not self.mousePos: self.mousePos=event.pos()
         if self.flag_Dragging:
             self.dragRect = QRect(self.drag_start_pos, event.pos()).normalized()
             self.update()
@@ -529,6 +557,7 @@ class RectLabel(QLabel):
         if self.flag_Grabbing:
             #self.lastdrawing.append(self.mousePos)
             self.lastdrawing.fill(self.mousePos,event.pos())
+            #print(f"{self.mousePos}={event.pos()}:{self.mousePos==event.pos()}")
             self.update()
 
         '''if self.keyStates.get(Qt.Key.Key_Delete)==KEY_HOLDING and self.colorSelector.getColor(self.mousePos) and self.colorSelector.getColor(self.mousePos)!=self.grabbingColor:
@@ -609,22 +638,23 @@ class RectLabel(QLabel):
 
                 剪贴板文字->追加信息'''
         if clipboard.mimeData().hasImage():
-            if self.new_widget is None:return
+            #if self.new_widget is None:return
             image = clipboard.image()
             messagebox=QMessageBox(text="create new figure?")
             messagebox.setStandardButtons(QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.Cancel)
             response=messagebox.exec()
             if response==QMessageBox.StandardButton.Yes and type(self.parent()):
                 parent=self.parent()
-                self.new_widget(image)
+                self.reinit(image)
             pass
         if clipboard.mimeData().hasText():
             text = clipboard.text()
             self.commandStack.setInfoFromColor(self.grabbingColor,text)
             self.dataWidget.updateData(self.commandStack,self.graphPos_)
 
-    def newfigConnect(self,slot):
-        self.new_widget=slot
+    def reinit(self,img_path):
+        self.figure_init(img_path)
+        self.layout_init()
 
     def select_path(self):
         """
@@ -633,13 +663,13 @@ class RectLabel(QLabel):
         This method sets the `imgdir` and `imgname` attributes based on the selected file.
         It also calls the `new_widget` method to update the displayed image.
         """
-        if self.new_widget is None:return
+        #if self.new_widget is None:return
         dialog=QFileDialog()
         dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
             
         directory,filetype = dialog.getOpenFileName(self, 'Select Directory',filter="img(*)")
         if directory:
-            self.new_widget(directory)
+            self.reinit(directory)
 
     def keyReleaseEvent(self, a0: QKeyEvent | None) -> None:
          self.keyStates[a0.key()] = KEY_RELEASED

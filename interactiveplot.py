@@ -32,16 +32,16 @@ class InteractivePlot(QMainWindow):
         self.setWindowTitle('Interactive Plot')
         self.setGeometry(ax,ay,aw,ah)
 
-        self.label=QLabel(self)
+        '''self.label=QLabel(self)
 
         self.imgdir=""
         self.imgname=""
 
         self.select_path()
-
-        # 创建一个QLabel对象，并将OpenCV图像显示在其中
-        self.label = RectLabel(self,os.path.join(self.imgdir,self.imgname))
-        self.label.newfigConnect(self.new_widget)
+'''
+        # 创建一个QLabel对象，并将OpenCV图像显示在其中  ,os.path.join(self.imgdir,self.imgname)
+        self.label = RectLabel(self)
+        #self.label.newfigConnect(self.new_widget)
 
         layout = QVBoxLayout()
         layout.addWidget(self.label)
@@ -52,7 +52,7 @@ class InteractivePlot(QMainWindow):
 
         # 设置鼠标跟踪，使得鼠标移动事件能够触发
         self.label.setMouseTracking(True)
-
+'''
     def select_path(self):
         """
         Opens a file dialog to select an image file.
@@ -85,5 +85,7 @@ class InteractivePlot(QMainWindow):
         self.setCentralWidget(newwidget)  # 将新的小部件添加到当前布局管理器中
         self.label=newwidget
         self.label.newfigConnect(self.new_widget)
+        self.label.setMouseTracking(True)
         self.update()
 
+'''

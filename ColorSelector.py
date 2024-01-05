@@ -69,8 +69,10 @@ class ColorSelector(QLabel):
     def setHighlight(self,colors:str|set[str]):
         if type(colors)==type(""):
             self.highlightColors={colors}
+            self.update()
             return
         self.highlightColors=colors
+        self.update()
 
     def getColor(self,pos:QPoint):
         if self.colomnmode: return self.getColorColomn(pos)
@@ -122,6 +124,7 @@ class ColorSelector(QLabel):
         painter=QPainter(self)
         pen=QPen(Qt.GlobalColor.lightGray,3)
         painter.setPen(pen)
+        painter.fillRect(self.rect(),QColor(255,255,255))
         painter.drawRect(self.rect())
         for color in self.displayColors:
             pen=QPen(QColor(*_hextoRGB(color)),3)

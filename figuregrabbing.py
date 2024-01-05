@@ -61,10 +61,11 @@ class GrabitLine:
             self.append(data=p0,graphdata=self.graphPos_(p0.x(),p0.y()),erased=erased)
         if p1 is None: p1=self.lastnode().data
         gdata0,gdata1=self.graphPos_(p0.x(),p0.y()),self.graphPos_(p1.x(),p1.y())
-        x=np.linspace(p0.x(),p1.x(),int(np.abs(gdata0[0]-gdata1[0])+1),dtype=np.int32)
-        y=np.linspace(p0.y(),p1.y(),int(np.abs(gdata0[0]-gdata1[0])+1),dtype=np.int32)
-        gx=np.linspace(gdata0[0],gdata1[0],int(np.abs(gdata0[0]-gdata1[0])+1),dtype=np.int32)
-        gy=np.linspace(gdata0[1],gdata1[1],int(np.abs(gdata0[0]-gdata1[0])+1),dtype=np.float32)
+        pad_num=int(np.abs(gdata0[0]-gdata1[0])*6+1)    #TODO 太强暴了 优化
+        x=np.linspace(p0.x(),p1.x(),pad_num,dtype=np.int32)
+        y=np.linspace(p0.y(),p1.y(),pad_num,dtype=np.int32)
+        gx=np.linspace(gdata0[0],gdata1[0],pad_num,dtype=np.int32)
+        gy=np.linspace(gdata0[1],gdata1[1],pad_num,dtype=np.float32)
         for xp,yp,xg,yg in zip(x,y,gx,gy):
             self.append(data=QPoint(xp,yp),graphdata=(xg,yg),erased=erased)
         
