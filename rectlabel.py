@@ -233,18 +233,21 @@ class RectLabel(QLabel):
 
         tablelayout=QHBoxLayout()
         tablelayout.setAlignment(Qt.AlignmentFlag.AlignBottom)
-        self.dataWidget.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Preferred)
+        self.dataWidget.setSizePolicy(QSizePolicy.Policy.Expanding,QSizePolicy.Policy.Fixed)
+        self.dataWidget.setFixedHeight(150)
         tablelayout.addWidget(self.dataWidget)
 
         canvaslayout=QHBoxLayout()
         canvaslayout.setAlignment(Qt.AlignmentFlag.AlignTop)
         canvas=self.dataWidget.canvasLabel
-        canvas.setFixedSize(626,516)
+        fixedwidth=626
+        canvas.setFixedSize(fixedwidth,516)
         canvas.setSizePolicy(QSizePolicy.Policy.Fixed,QSizePolicy.Policy.Fixed)
         canvaslayout.addLayout(buttonlayout)
         canloglayout=QVBoxLayout()
         canloglayout.addWidget(canvas,alignment=Qt.AlignmentFlag.AlignTop|Qt.AlignmentFlag.AlignRight)
-        self.logbox.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding)
+        self.logbox.setFixedWidth(fixedwidth)
+        self.logbox.setSizePolicy(QSizePolicy.Policy.Fixed,QSizePolicy.Policy.Expanding)
         canloglayout.addWidget(self.logbox)
         canvaslayout.addLayout(canloglayout)
         #canvaslayout.addWidget(canvas)
