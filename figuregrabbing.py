@@ -145,7 +145,7 @@ class GrabitEraserLine(GrabitLine):     #神秘橡皮擦
         return super().fill(p0, p1, erased)
 
     def display(self, painter: QPainter, condition=None):
-        if self.isEmpty():return
+        """if self.isEmpty():return
         #painter.fillRect(QRect(self.head.data,self.lastnode().data))
         if condition is None:   condition=lambda x:True
         _,_,y1,y2=self.findBound()
@@ -163,7 +163,7 @@ class GrabitEraserLine(GrabitLine):     #神秘橡皮擦
                 painter.fillRect(QRect(p0.data,current.data),QColor(155,155,155,10))
                 p0=current'''
                 
-            current = current.next
+            current = current.next"""
         return #super().display(painter, condition)
 
 class GrabitStack:

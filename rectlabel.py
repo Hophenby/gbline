@@ -57,6 +57,7 @@ class EmittingStream(QtCore.QObject):
 
     Methods:
         write: Writes text and emits the textWritten signal.
+        close: Closes the stream.
     """
     textWritten = pyqtSignal(str)
 
@@ -68,6 +69,13 @@ class EmittingStream(QtCore.QObject):
             text (str): The text to be written.
         """
         self.textWritten.emit(str(text))
+
+    def close(self):
+        """
+        Closes the stream.
+        """
+        # Perform any necessary cleanup here
+        pass
 
 
 class RectLabel(QLabel):
@@ -653,6 +661,9 @@ class RectLabel(QLabel):
             self.dataWidget.updateData(self.commandStack,self.graphPos_)
 
     def reinit(self,img_path):
+        imgsrc={"str":"file","QImage":"clipboard"}
+        print("loading new image")
+        print(f"source:{imgsrc.get(img_path.__class__.__name__)}")
         self.figure_init(img_path)
         self.layout_init()
 

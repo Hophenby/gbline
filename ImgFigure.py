@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from numpy.random.mtrand import multivariate_normal
-
+from scipy.stats import mode
 
 from sklearn.cluster import KMeans
 
@@ -67,6 +67,40 @@ def color_clustering(img,n=2):
 
     return colors_sorted[1:]                #, silhouette_avg
 
+def filterdeviation(originlist, key, threshold=5):
+    """
+    Filter the originlist based on the deviation of key values from their mode.
+
+    Parameters:
+    originlist (list): The original list of values.
+    key (list): The list of key values to compare against.
+    threshold (float, optional): The threshold for deviation. Values above this threshold will be filtered out. Default is 5.
+
+    Returns:
+    list: The filtered list of values from originlist.
+
+    Raises:
+    IndexError: If the length of originlist is not equal to the length of key.
+
+    """
+    if len(originlist) != len(key):
+        raise IndexError(f"length of ({key}, len={len(key)}) is not equal to ({originlist}, len={len(originlist)})")
+
+    key = np.array(key)
+    indices = np.arange(len(key))
+
+    # Find the mode value in the array (dense region)
+    mode_value = mode(key)[0]
+
+    # Calculate the absolute deviation of each element from the mode value
+    deviation = np.abs(key - mode_value)
+
+    # Check if the deviation exceeds the threshold
+    is_outlier = deviation > threshold
+    indices = indices[~is_outlier]
+
+    return [originlist[i] for i in indices]
+
 
 def ocr(img): #识别图像，返回横坐标
     # 灰度化和二值化
@@ -83,35 +117,41 @@ def ocr(img): #识别图像，返回横坐标
 def ocr_x(result): #识别图像，返回横坐标
     
     x_list=[]
+    xy_list=[]
     cpl_x_list=[]
     for line in result[0]:
         # x = re.findall(r'^[1-9][0-9]{2}', str(line[1][0]))
         #print(pd.DataFrame(line).to_markdown())    
-        x = re.findall(r'\b[1-9]\d{2,3}\b', str(line[1][0])) #三位数以及四位数
+        x = re.findall(r'^\b[1-9]\d{2,3}\b$', str(line[1][0])) #三位数以及四位数
         #print(x)
         if x:
             x_list.append((int((line[0][0][0] + line[0][1][0]) / 2),int(x[0])))
+            xy_list.append(int((line[0][0][1] + line[0][1][1]) / 2))
         # x = re.findall(r'^[1-9][0-9]{2}', str(line[1][0]))
         cpl_x = re.findall(r'\b\d+\b', str(line[1][0])) #啥位数都匹配
         #print(x)
         if cpl_x:
-            cpl_x_list.append((int((line[0][0][0] + line[0][1][0]) / 2),cpl_x[0]))
+            cpl_x_list.append((int((line[0][0][0] + line[0][1][0]) / 2),
+                               int((line[0][0][1] + line[0][1][1]) / 2),
+                               cpl_x[0]))
 
-    return x_list, cpl_x_list
+    return filterdeviation(x_list,xy_list), cpl_x_list
 
 
 
 def ocr_y(result): #识别图像，返回横坐标
     y_list=[]
-    cpl_y_list=[]
+    yx_list=[]
     for line in result[0]:
         # x = re.findall(r'^[1-9][0-9]{2}', str(line[1][0]))
-        y = re.findall(r'\b[0-9](?:.|,)[0-9]{,3}\b', str(line[1][0])) #三位数以及四位数
+        y = re.findall(r'^\b(?:[0-9](?:.|,)[0-9]{,3}|[0-9]{,3})\b$', str(line[1][0])) #2位数
         #print(y,int((line[0][0][1] + line[0][1][1]) / 2))
-        if y and float(y[0].replace(",","."))<2:
+        if y:            #and float(y[0].replace(",","."))<100
             y_list.append((int((line[0][0][1] + line[0][1][1]) / 2),float(y[0].replace(",","."))))
+            yx_list.append(int((line[0][0][0] + line[0][1][0]) / 2))
 
-    return y_list   #,cpl_x_list
+    return filterdeviation(y_list,yx_list)   #,cpl_x_list
+
 
 
 
@@ -234,7 +274,7 @@ class ImgFigure:
         y_list=ocr_y(ocred)
 
         print("matched")
-        print(pd.DataFrame(cpl_x_list).rename({0:"x",1:"OCR value"},axis=1).to_markdown())
+        print(pd.DataFrame(cpl_x_list).rename({0:"x",1:"y",2:"OCR value"},axis=1).to_markdown())
         print("\nfiltered")
         print(pd.DataFrame(x_list).rename({0:"x",1:"OCR value"},axis=1).to_markdown())
         print("\nfiltered y")

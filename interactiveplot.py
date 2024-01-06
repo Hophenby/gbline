@@ -1,6 +1,8 @@
 
 import os
 import re
+import sys
+from PyQt6.QtGui import QCloseEvent
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -39,19 +41,36 @@ class InteractivePlot(QMainWindow):
 
         self.select_path()
 '''
-        # 创建一个QLabel对象，并将OpenCV图像显示在其中  ,os.path.join(self.imgdir,self.imgname)
-        self.label = RectLabel(self)
-        #self.label.newfigConnect(self.new_widget)
+        try:
+            # 创建一个QLabel对象，并将OpenCV图像显示在其中  ,os.path.join(self.imgdir,self.imgname)
+            self.label = RectLabel(self)
+            #self.label.newfigConnect(self.new_widget)
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.label)
-        
-        widget = QWidget()
-        widget.setLayout(layout)
-        self.setCentralWidget(widget)
+            layout = QVBoxLayout()
+            layout.addWidget(self.label)
+            
+            widget = QWidget()
+            widget.setLayout(layout)
+            self.setCentralWidget(widget)
 
-        # 设置鼠标跟踪，使得鼠标移动事件能够触发
-        self.label.setMouseTracking(True)
+            # 设置鼠标跟踪，使得鼠标移动事件能够触发
+            self.label.setMouseTracking(True)
+        except:
+            self.close()
+
+
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
+        sys.stdout.close()
+        # 获取 QTextEdit 中的文本内容
+        text = self.label.logbox.toPlainText()
+
+        # 写入日志文件
+        with open('app.log', 'a') as f:
+            f.write(text)
+
+        # 正常关闭窗口
+        a0.accept()
+        return super().closeEvent(a0)
 '''
     def select_path(self):
         """
