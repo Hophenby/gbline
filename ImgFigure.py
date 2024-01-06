@@ -298,12 +298,13 @@ class ImgFigure:
             y1_value=y_array[index_1][1]
             y2_value=y_array[index_2][1]
             
-
+            if not (x2-x1 and y2-y1):raise IndexError(f"Cannot set up axes")
 
             y1,y2=int(y1),int(y2)
             return x1,x2,x1_value,x2_value,y1,y2,y1_value,y2_value
         except IndexError as e:
-            print(f"error No data parsed:[{e.__class__.__name__}] {e}")
+            print("error No data parsed:")
+            print(f"[{e.__class__.__name__}] {e}")
             return
         except Exception as e:
             print(f"error in image crop:[{e.__class__.__name__}] {e}")
@@ -376,6 +377,7 @@ class ImgFigure:
         return img
     
     def find_line(self,num_line=3,img=None,cover_gray=True):
+        #TODO 把挑线功能与调颜色拆了然后可以按颜色单独挑线
         if img is None: img=self.img.copy()
         if cover_gray: img=self._cover_gray(img=img)
                 

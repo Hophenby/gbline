@@ -254,6 +254,18 @@ class RectLabel(QLabel):
         
         if self.layout():
             layout=self.layout()
+            def removeWidgets(layout:QBoxLayout):
+                while layout.count():
+                    item = layout.takeAt(0)
+                    widget = item.widget()
+                    if widget:
+                        widget.deleteLater()
+                    else:
+                        removeWidgets(item.layout())
+
+                if self.layout():
+                    removeWidgets(self.layout())
+            removeWidgets(layout=layout)
             while layout.count():
                 item=layout.takeAt(0)
                 layout.removeItem(item)

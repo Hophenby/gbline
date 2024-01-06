@@ -204,6 +204,7 @@ class SpectraTable(QTableWidget):
                 #self.setItem(x-x_min+1,i+1,QTableWidgetItem(f"{y:.3f}"))
                 y=y or np.nan
                 self.setItem(i+1,x-x_min+1,QTableWidgetItem(f"{y:.3f}"))
+                self.item(i+1,x-x_min+1).setBackground(QColor(*_hextoRGB(k),60))
             
         if not(self.data is None):
             self.plot_dataframe(self.data,x_min,x_max,y_min,y_max,alphaMap)
