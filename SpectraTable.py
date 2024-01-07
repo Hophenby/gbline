@@ -60,7 +60,7 @@ class SpectraTable(QTableWidget):
 
             except Exception as e:
                 print("failed to select color from table")
-                print(f"{e.__class__.__name__} : {str(e)}")
+                print(f"[{e.__class__.__name__}] {str(e)}")
                 return
         if e.button() == Qt.MouseButton.MiddleButton:
             # 获取鼠标右键点击的单元格坐标

@@ -8,7 +8,7 @@ from PyQt6 import QtGui
 from PyQt6 import QtCore
 import cv2
 
-from PyQt6.QtWidgets import QBoxLayout, QButtonGroup, QFileDialog, QHBoxLayout, QInputDialog, QMainWindow, QSizePolicy, QSpacerItem, QTextEdit, QVBoxLayout, QApplication,  QWidget, QLabel,QPushButton,QTableWidget,QTableWidgetItem,QMessageBox
+from PyQt6.QtWidgets import QBoxLayout, QButtonGroup, QFileDialog, QHBoxLayout, QInputDialog, QMainWindow, QSizePolicy, QSpacerItem, QTextEdit, QVBoxLayout, QApplication,  QWidget, QLabel,QPushButton,QTableWidget,QTableWidgetItem,QMessageBox,QScrollBar
 from PyQt6.QtGui import QCursor, QFont, QGuiApplication, QIcon, QImage, QKeyEvent,QPixmap,QPen,QPainter,QColor,QMouseEvent,QPaintEvent,QClipboard
 from PyQt6.QtCore import QEvent, QSize, Qt,QRect,QPoint, pyqtSignal
 import numpy as np
@@ -60,6 +60,7 @@ class EmittingStream(QtCore.QObject):
         close: Closes the stream.
     """
     textWritten = pyqtSignal(str)
+    Time=str(time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime()))
 
     def write(self, text):
         """
@@ -68,7 +69,26 @@ class EmittingStream(QtCore.QObject):
         Args:
             text (str): The text to be written.
         """
-        self.textWritten.emit(str(text))
+        text=str(text)
+        now = str(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
+        lines = text.splitlines()
+        log=""
+        if not text.isspace():
+            if len(lines) > 1:
+                
+                log=(f"[{now}]\n")
+                for line in lines:
+                    log=log+(f"{line}\n")
+            else:
+                log=(f"[{now}] {text}\n")
+
+        self.textWritten.emit(log)
+        try:
+            if not os.path.exists("log"):os.mkdir("log")
+            with open(f'log\\{self.Time}-app.log', 'a') as f:
+                    f.write(log)
+        except OSError:
+            return
 
     def close(self):
         """
@@ -89,9 +109,24 @@ class RectLabel(QLabel):
         self.logbox.setFont(QFont("Courier"))
         self.logbox.setReadOnly(True)
         self.logbox.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.logbox.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+
+        h_scrollbar = self.logbox.horizontalScrollBar()
+        h_scrollbar.setSingleStep(20)  # 设置每次滚动的距离
+        h_scrollbar.setPageStep(200)  # 设置每页滚动的距离
+        h_scrollbar.setRange(0, 1000)  # 设置滚动条范围
+        h_scrollbar.setSliderPosition(500)  # 设置滑块位置
+        h_scrollbar.setTracking(True)  # 滑块是否一直处于被拖动状态
+        h_scrollbar.setOrientation(Qt.Orientation.Horizontal)  # 设置滚动条方向，默认为垂直方向
+        h_scrollbar.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)  # 禁用右键菜单
+        h_scrollbar.setStyleSheet("QScrollBar::handle:horizontal { background-color: gray; }")  # 自定义样式
+
         
         sys.stdout = EmittingStream()
         sys.stdout.textWritten.connect(self.normal_output_written)
+
+        
+
 
         if not img_path: 
             img_path=QImage(500,500,QImage.Format.Format_RGB32)
@@ -364,7 +399,9 @@ class RectLabel(QLabel):
 
     def analyseEvent(self):
         try:
-              text,ok=QInputDialog(self).getText(self,"","count of the lines:",text=f"{self.imgFigure.find_color_num(max_num=6)}")
+              #self.imgFigure.find_color_num(max_num=6)
+              #一边去吧
+              text,ok=QInputDialog(self).getText(self,"","count of the lines:",text=f"{1}")
               if ok:
                    self.analyse(int(text))
                    self.saved=False
@@ -524,7 +561,7 @@ class RectLabel(QLabel):
         xy = event.pos()
         xcl,ycl=xy.x(),xy.y()
         print(f'Clicked at position ({xcl}, {ycl})')
-        print(f'aa({self.graphPos_(xcl,ycl)[0]}, {self.graphPos_(xcl,ycl)[1]})')
+        print(f'graph pos:({self.graphPos_(xcl,ycl)[0]}, {self.graphPos_(xcl,ycl)[1]})')
 
         self.imgremaptext.hide()
 
@@ -604,7 +641,7 @@ class RectLabel(QLabel):
         xy = event.pos()
         xcl,ycl=xy.x(),xy.y()
         print(f'Released at position ({xcl}, {ycl})')
-        print(f'aa({self.graphPos_(xcl,ycl)[0]}, {self.graphPos_(xcl,ycl)[1]})')
+        print(f'graph pos:({self.graphPos_(xcl,ycl)[0]}, {self.graphPos_(xcl,ycl)[1]})')
         
 
         if event.button() == Qt.MouseButton.LeftButton and self.flag_Dragging:

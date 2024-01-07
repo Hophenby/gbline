@@ -61,7 +61,7 @@ class InteractivePlot(QMainWindow):
 
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         sys.stdout.close()
-        # 获取 QTextEdit 中的文本内容
+        '''# 获取 QTextEdit 中的文本内容
         text = self.label.logbox.toPlainText()
 
         # 写入日志文件
@@ -69,7 +69,7 @@ class InteractivePlot(QMainWindow):
             f.write(text)
 
         # 正常关闭窗口
-        a0.accept()
+        a0.accept()'''
         return super().closeEvent(a0)
 '''
     def select_path(self):

@@ -275,9 +275,9 @@ class ImgFigure:
 
         print("matched")
         print(pd.DataFrame(cpl_x_list).rename({0:"x",1:"y",2:"OCR value"},axis=1).to_markdown())
-        print("\nfiltered")
+        print("filtered")
         print(pd.DataFrame(x_list).rename({0:"x",1:"OCR value"},axis=1).to_markdown())
-        print("\nfiltered y")
+        print("filtered y")
         print(pd.DataFrame(y_list).rename({0:"y",1:"OCR value"},axis=1).to_markdown())
 
         try:
@@ -311,6 +311,7 @@ class ImgFigure:
             raise
     
     def find_color_num(self,max_num=10,img=None,cover_gray=True):
+        #TODO 非必要功能啥时候刀了
         if img is None: img=self.img.copy()
         if cover_gray: img=self._cover_gray(img=img)
         img_cut=img[self.y1+int(0.00*(self.y2-self.y1)):
@@ -391,13 +392,14 @@ class ImgFigure:
                         self.x1+int(0.00*(self.x2-self.x1)):
                         self.x2-int(0.00*(self.x2-self.x1))]
         colors=color_clustering(img_cut,n)
+        print("colors found:")
         print(pd.DataFrame(colors).to_markdown())
         # colors=newcolor(img[y1:y2,x1:x2],n)
 
         #print(f"sil_score:{pd.DataFrame({i:color_clustering(img_cut,i) for i in tqdm(range(2,11))}).to_markdown()}")
         color_range=np.zeros((2*n,3))
 
-        color_img = np.zeros((100, 100, 3), np.uint8)
+        """color_img = np.zeros((100, 100, 3), np.uint8)
         '''长得像层析色谱的东西'''
         # 画色图()
         top_colors=colors
@@ -405,7 +407,7 @@ class ImgFigure:
             color_rgb = cv2.cvtColor(np.uint8([[color]]), cv2.COLOR_HSV2RGB)[0][0] #很重要
             #color_rgb=ImageColor.getrgb(f"hsv({color[0]},{color[1]/255:%},{color[2]/255:%})")
             a=100//len(top_colors)
-            color_img[:, i*a:(i+1)*a] = color_rgb
+            color_img[:, i*a:(i+1)*a] = color_rgb"""
                 
                 #提取颜色对应的曲线
         img1=img.copy()[self.y1+int(0.00*(self.y2-self.y1)):
@@ -508,8 +510,8 @@ class ImgFigure:
         ax2.axis('off')
         plt.show()
 '''
-
-        #print(pd.DataFrame(point_map).to_markdown())
+        print("point_map:")
+        print(pd.DataFrame(point_map).to_markdown())
         return pd.DataFrame(point_map)
     
     def getColorMask(self,img=None,color:QColor|tuple[int,int,int]|str="#ffffff",threshold=5):
