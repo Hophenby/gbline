@@ -1,4 +1,5 @@
 
+#import asyncio
 import os
 import re
 import sys
@@ -9,13 +10,17 @@ from PyQt6 import QtCore
 import cv2
 
 from PyQt6.QtWidgets import QBoxLayout, QButtonGroup, QFileDialog, QHBoxLayout, QInputDialog, QMainWindow, QSizePolicy, QSpacerItem, QTextEdit, QVBoxLayout, QApplication,  QWidget, QLabel,QPushButton,QTableWidget,QTableWidgetItem,QMessageBox,QScrollBar
-from PyQt6.QtGui import QCursor, QFont, QGuiApplication, QIcon, QImage, QKeyEvent,QPixmap,QPen,QPainter,QColor,QMouseEvent,QPaintEvent,QClipboard
-from PyQt6.QtCore import QEvent, QSize, Qt,QRect,QPoint, pyqtSignal
+from PyQt6.QtGui import QBrush,QCursor, QFont, QGuiApplication, QIcon, QImage, QKeyEvent,QPixmap,QPen,QPainter,QColor,QMouseEvent,QPaintEvent,QClipboard, QPainterPath
+from PyQt6.QtCore import QPointF, QEvent, QSize, Qt,QRect,QPoint, pyqtSignal
 import numpy as np
+import pandas as pd
+#import qasync
+#from qasync import QEventLoop
 
 from ImgFigure import ImgFigure
+from ScreenshotWindow import CaptureThread, ScreenshotDialog
 from figuregrabbing import GrabitEraserLine, GrabitLine,GrabitStack
-from ColorSelector import ColorSelector, _hextoRGB
+from ColorSelector import ColorSelector, _hextoRGB, _qcolortoHEX, _rgbtoHEX
 from SpectraTable import SpectraTable
 from DoubleLineEdit import DoubleLineEdit
 
@@ -27,6 +32,7 @@ KEY_RELEASED=0
 STATE_DRAG=0
 STATE_GRAB=1
 STATE_ERASE=2
+STATE_COLOREXTRACT=3
 
 def make_filename_legal(filename):
     # 替换非法字符
@@ -138,20 +144,28 @@ class RectLabel(QLabel):
         for i in range(3):
             button=QPushButton(self)
             button.setGeometry(10,110+70*i,100,50)
-            '''button.clicked.connect(lambda x:self.switch_dragEvent(i))#绑的怎么是同一个函数改改改改改改
-            print(self.switch_dragEvent(i))
+            '''button.clicked.connect(lambda x:self.switch_drag_state(i))#绑的怎么是同一个函数改改改改改改
+            print(self.switch_drag_state(i))
             print(self.drag_state)'''
             modetext={STATE_DRAG:"drag",STATE_GRAB:"grab",STATE_ERASE:"erase"}
-            button.setText(f"switch to\n{modetext[i]} mode")
+            button.setText(f"{modetext[i]} mode")
             self.buttonGroup.addButton(button,i)
 
-        self.buttonGroup.button(1).clicked.connect(lambda _:self.switch_dragEvent(1))
-        self.buttonGroup.button(2).clicked.connect(lambda _:self.switch_dragEvent(2))
-        self.buttonGroup.button(0).clicked.connect(lambda _:self.switch_dragEvent(0))
+        self.buttonGroup.button(1).clicked.connect(lambda _:self.switch_drag_state(1))
+        self.buttonGroup.button(2).clicked.connect(lambda _:self.switch_drag_state(2))
+        self.buttonGroup.button(0).clicked.connect(lambda _:self.switch_drag_state(0))
 
-        self.buttonAnalyse=QPushButton("analyse",self)
-        self.buttonAnalyse.setGeometry(10,320,100,50)
-        self.buttonAnalyse.clicked.connect(self.analyseEvent)
+        self.buttonAnalyzeAll=QPushButton("analyze all",self)
+        self.buttonAnalyzeAll.setGeometry(10,320,100,50)
+        self.buttonAnalyzeAll.clicked.connect(self.analyzeAllEvent)
+
+        self.buttonAnalyze=QPushButton("analyze line",self)
+        self.buttonAnalyze.setGeometry(10,320,100,50)
+        self.buttonAnalyze.clicked.connect(self.analyzeEvent)
+
+        self.buttonFindColors=QPushButton("find colors",self)
+        self.buttonFindColors.setGeometry(10,320,100,50)
+        self.buttonFindColors.clicked.connect(self.findColorsEvent)
 
         self.buttonCsvDir=QPushButton("save csv",self)
         self.buttonCsvDir.setToolTip(f"{self.csvdir}")
@@ -161,6 +175,7 @@ class RectLabel(QLabel):
         self.buttonAddColor=QPushButton("add color",self)
         self.buttonAddColor.setGeometry(10,390,100,50)
         self.buttonAddColor.clicked.connect(self.appendNew)
+        self.buttonGroup.addButton(self.buttonAddColor,3)
 
         self.buttonNew=QPushButton("New figure",self)
         self.buttonNew.setGeometry(10,50,100,50)
@@ -198,7 +213,8 @@ class RectLabel(QLabel):
         self.dragRect = QRect()
         self.setPixmap(QPixmap.fromImage(self.q_image))
 
-        self.drag_state=0
+        self.drag_state=STATE_DRAG
+        self.last_drag_state=self.drag_state
         self.flag_Dragging = False  # 是否正在拖拽
         self.drag_start_pos = None  # 记录拖拽起始位置
         self.drag_release_pos = None  # 记录拖拽起始位置
@@ -239,6 +255,7 @@ class RectLabel(QLabel):
         self.colorSelector=ColorSelector(self,column_mode=True)
         self.colorSelector.setGeometry(10,460,100,300)
         self.grabbingColor="#000000"
+        self.temp_color=self.grabbingColor
         self.colorSelector.setHighlight(self.grabbingColor)
         self.dataWidget.connect_colorselector(self.colorSelector)
 
@@ -257,9 +274,11 @@ class RectLabel(QLabel):
         buttonlayout=QVBoxLayout()
         buttonlayout.setAlignment(Qt.AlignmentFlag.AlignTop|Qt.AlignmentFlag.AlignLeft)
         buttonlayout.addWidget(self.buttonNew)
-        buttonlayout.addWidget(self.buttonAnalyse)
         buttonlayout.addWidget(self.buttonCsvDir)
-        for button in self.buttonGroup.buttons():buttonlayout.addWidget(button)
+        buttonlayout.addWidget(self.buttonAnalyzeAll)
+        buttonlayout.addWidget(self.buttonFindColors)
+        buttonlayout.addWidget(self.buttonAnalyze)
+        for button in self.buttonGroup.buttons()[:3]:buttonlayout.addWidget(button)
         self.colorSelector.setSizePolicy(QSizePolicy.Policy.Preferred,QSizePolicy.Policy.Expanding)
         buttonlayout.addWidget(self.colorSelector)
         buttonlayout.addWidget(self.buttonAddColor)
@@ -314,6 +333,7 @@ class RectLabel(QLabel):
             
             self.setLayout(mainlayout)
 
+    
 
     def normal_output_written(self, text):
         """
@@ -371,9 +391,40 @@ class RectLabel(QLabel):
             print("data saved")
 
     def appendNew(self):
-        return self.colorSelector.appendNew()
+        self.switch_drag_state(3)
+        #print("aaa")
+        #screenshot=ScreenshotDialog()
+        self.screenshot_dialog = ScreenshotDialog()
+        self.capture_thread = CaptureThread(self.screenshot_dialog,ScreenshotDialog.state.color_select)
+        self.capture_thread.capture_finished.connect(self.handle_capture_finished)
+        self.capture_thread.start()
+        #return self.colorSelector.appendNew()
+    def handle_capture_finished(self, result):
+        # Handle the result of the capture here...
+        print(f"captured{_qcolortoHEX(result)}")
+        self.colorSelector.append(_qcolortoHEX(result))
+        self.switch_drag_state(self.last_drag_state)
+        pass
 
-    def analyse(self, n: int):
+    def findColorsEvent(self):
+        try:
+        #self.imgFigure.find_color_num(max_num=6)
+              #一边去吧
+            text,ok=QInputDialog(self).getText(self,"","count of the lines:",text=f"{1}")
+            if ok:
+                firstcolor = None
+                colors=self.imgFigure.find_colors(int(text),mode="hex")
+                for color in colors:    
+                    firstcolor = firstcolor or color
+                    self.colorSelector.append(color)
+                self.setGrabbingColor(firstcolor or self.grabbingColor)
+                
+        except Exception as e:
+            print(f"failed to find colors")
+            print(f"[{e.__class__.__name__}] {e}")
+
+
+    def analyze(self, n: int):
         """
         Analyzes the image figure and performs line grabbing based on the specified number of lines.
 
@@ -383,7 +434,7 @@ class RectLabel(QLabel):
         Returns:
         None
         """
-        analyzed = self.imgFigure.find_line(n)
+        analyzed = self.imgFigure.find_lines(n)
         firstcolor = None
         for col in analyzed.columns:
             firstcolor = firstcolor or col
@@ -397,16 +448,47 @@ class RectLabel(QLabel):
 
         self.setGrabbingColor(firstcolor or self.grabbingColor)
 
-    def analyseEvent(self):
+    def analyzePerColor(self,color):
+        analyzed = self.imgFigure.find_line_from_color(color)
+        self.commandStack.push(
+                GrabitLine(line={self.parentPos_(xcl, ycl)[0]: self.parentPos_(xcl, ycl)[1] for xcl, ycl in sorted(analyzed.items(),key=lambda i:i[0]) if not np.isnan([xcl, ycl]).any()},
+                           color=color,
+                           graghPos_=self.graphPos_)
+            )
+        self.colorSelector.update()
+        self.dataWidget.updateData(self.commandStack, self.graphPos_)
+        self.dataWidget.canvasLabel.update()
+        self.setGrabbingColor(self.grabbingColor)
+
+    def analyzeAllEvent(self):
         try:
               #self.imgFigure.find_color_num(max_num=6)
               #一边去吧
-              text,ok=QInputDialog(self).getText(self,"","count of the lines:",text=f"{1}")
-              if ok:
-                   self.analyse(int(text))
-                   self.saved=False
+            text,ok=QInputDialog(self).getText(self,"","count of the lines:",text=f"{1}")
+            if ok:
+                self.analyze(int(text))
+                self.saved=False
+            '''
+            self.analyzePerColor(self.grabbingColor)
+            self.saved=False'''
         except Exception as e:
-             print(f"[{e.__class__.__name__}] {e}")
+            print(f"failed to analyze all lines")
+            print(f"[{e.__class__.__name__}] {e}")
+
+    def analyzeEvent(self):
+        try:
+            '''  #self.imgFigure.find_color_num(max_num=6)
+              #一边去吧
+            text,ok=QInputDialog(self).getText(self,"","count of the lines:",text=f"{1}")
+            if ok:
+                self.analyze(int(text))
+                self.saved=False
+            '''
+            self.analyzePerColor(self.grabbingColor)
+            self.saved=False
+        except Exception as e:
+            print(f"failed to analyze from Color[{self.grabbingColor}]")
+            print(f"[{e.__class__.__name__}] {e}")
 
     def eventFilter(self, obj, event:QEvent):
         if event.type() == QEvent.Type.InputMethod :        #and event.reason() == Qt.InputMethodQuery.ImQueryInput
@@ -423,7 +505,8 @@ class RectLabel(QLabel):
         if self.keyStates.get(Qt.Key.Key_Control):alphaMap={"default":10,self.grabbingColor:255}
         return alphaMap
 
-    def switch_dragEvent(self,state:int):
+    def switch_drag_state(self,state:int):
+        self.last_drag_state=self.drag_state
         self.drag_state=state
         print(f"state:{self.drag_state}")
         self.update()
@@ -539,6 +622,16 @@ class RectLabel(QLabel):
             painter.drawPoint(16,16)
             painter.setPen(QPen(QColor(*_hextoRGB(self.grabbingColor)),1))
             painter.drawEllipse(QPoint(16,16),3,3)
+        if self.drag_state==STATE_COLOREXTRACT:
+            painter.setPen(QPen(QColor(*_hextoRGB(self.grabbingColor)),8))
+            painter.drawPoint(16,16)
+            '''painter.drawLine(16, 16, 16, 8)
+            path = QPainterPath()
+            path.addEllipse(QPointF(16,8),6,6)
+            brush = QBrush(QColor(*_hextoRGB(self.temp_color)) , Qt.BrushStyle.SolidPattern)
+            painter.fillPath(path, brush)
+            painter.setPen(QPen(QColor(*_hextoRGB(self.grabbingColor)),2))
+            painter.drawEllipse(QPointF(16,8),6,6)'''
         
         painter.end()
 
@@ -565,9 +658,17 @@ class RectLabel(QLabel):
 
         self.imgremaptext.hide()
 
+        color=self.colorSelector.getColor(xy)
+        if color:
+            self.setGrabbingColor(color)
+
         def isMouseInScreen(mouseButton): 
             return event.button() == mouseButton and self.geometry().contains(xy)
-
+        '''
+        if self.drag_state==STATE_COLOREXTRACT:
+            self.colorSelector.append(self.temp_color)
+            self.switch_drag_state(self.last_drag_state)
+'''
         if self.drag_state==STATE_DRAG:
             if isMouseInScreen(Qt.MouseButton.LeftButton):
                 self.flag_Dragging = True
@@ -603,6 +704,27 @@ class RectLabel(QLabel):
     def mouseMoveEvent(self, event:QMouseEvent):
         #print(self.mousePos)
         #if not self.mousePos: self.mousePos=event.pos()
+        if self.mousePos and self.mousePos in self.rect() and self.drag_state==STATE_COLOREXTRACT:
+            self.switch_drag_state(self.last_drag_state)
+        
+        '''if self.drag_state==STATE_COLOREXTRACT:
+            screen = QApplication.screenAt(self.mapToGlobal(self.mousePos))
+            pixmap = screen.grabWindow()
+
+            # 获取鼠标当前位置
+            
+            pos = self.mapToGlobal(self.mousePos)
+
+            # 获取鼠标位置处的像素颜色
+            pixel = pixmap.toImage().pixel(pos.x(), pos.y())
+
+            # 提取像素颜色的RGB值
+            r,g,b,a = QColor(pixel).getRgb()
+            print(f"r={r},g={g},b={b}")
+
+            if r and g and b:
+                self.temp_color=_rgbtoHEX(r,g,b)'''
+
         if self.flag_Dragging:
             self.dragRect = QRect(self.drag_start_pos, event.pos()).normalized()
             self.update()
@@ -691,6 +813,7 @@ class RectLabel(QLabel):
          
         self.keyStates[ev.key()] = KEY_HOLDING
         self.update()
+        self.dataWidget.canvasLabel.update()
         return super().keyPressEvent(ev)
     
     def parseClipboard(self,clipboard:QClipboard):
@@ -737,6 +860,7 @@ class RectLabel(QLabel):
     def keyReleaseEvent(self, a0: QKeyEvent | None) -> None:
          self.keyStates[a0.key()] = KEY_RELEASED
          self.update()
+         self.dataWidget.canvasLabel.update()
          return super().keyReleaseEvent(a0)
     
     

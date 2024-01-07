@@ -17,11 +17,29 @@ import colorsys
 
 from tqdm import tqdm
 
-from ColorSelector import _qcolortoHEX,_hextoRGB
+from ColorSelector import _qcolortoHEX,_hextoRGB, _rgbtoHEX
 from sklearn.metrics import silhouette_score
 
-def color_clustering(img,n=2):
-    '''移植
+
+def color_clustering(img,n=2,mode="hsv"):
+    '''
+    
+    Perform color clustering on an image using k-means algorithm.
+
+    Parameters:
+        img (numpy.ndarray): The input image.
+        n (int): The number of clusters to generate (default is 2).
+        mode (str): The color space mode to return the clustered colors in. 
+                    Valid options are "hsv", "rgb", and "hex" (default is "hsv").
+
+    Returns:
+        list: A list of clustered colors in the specified color space mode.
+
+    Raises:
+        ValueError: If an unexpected value is provided for the mode parameter.
+
+    
+    移植
     
     # 哇哇哇啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊哇哇啊啊啊啊啊啊啊啊啊啊啊啊啊啊'''
     # Load image
@@ -54,9 +72,10 @@ def color_clustering(img,n=2):
 
     # Sort the colors by count
     colors_sorted = [colors_hsv[i] for i in reversed(sorted(range(len(counts)), key=lambda k: counts[k]))]
+    colors_sorted_rgb=[cv2.cvtColor(np.uint8([[hsv]]), cv2.COLOR_HSV2RGB)[0][0] for hsv in colors_sorted]
 
     print(pd.concat([
-        pd.DataFrame([cv2.cvtColor(np.uint8([[hsv]]), cv2.COLOR_HSV2RGB)[0][0] for hsv in colors_sorted]).rename({0:"R",1:"G",2:"B"},axis=1),
+        pd.DataFrame(colors_sorted_rgb).rename({0:"R",1:"G",2:"B"},axis=1),
         pd.DataFrame(colors_sorted).rename({0:"H",1:"S",2:"V"},axis=1),
         pd.DataFrame([{"percentage":count/sum(counts)} for count in counts]).applymap(lambda s:f"{s:.3%}")
         ],axis=1)[1:].to_markdown())
@@ -64,8 +83,15 @@ def color_clustering(img,n=2):
 
     # Calculate silhouette score
     #silhouette_avg = silhouette_score(pixels, labels)
-
-    return colors_sorted[1:]                #, silhouette_avg
+    if mode=="hsv":
+        return colors_sorted[1:]                #, silhouette_avg
+    if mode=="rgb":
+        return colors_sorted_rgb[1:]
+    if mode=="hex":
+        return [_rgbtoHEX(*rgb) for rgb in colors_sorted_rgb][1:]
+    
+    raise ValueError(f"unexpected arg value mode:{mode}")
+    
 
 def filterdeviation(originlist, key, threshold=5):
     """
@@ -377,13 +403,13 @@ class ImgFigure:
         img=cv2.bitwise_not(img)
         return img
     
-    def find_line(self,num_line=3,img=None,cover_gray=True):
-        #TODO 把挑线功能与调颜色拆了然后可以按颜色单独挑线
+    def find_colors(self,num_color=3,img=None,cover_gray=True,mode="hsv"):
+        '''Valid options are "hsv", "rgb", and "hex" (default is "hsv").'''
         if img is None: img=self.img.copy()
         if cover_gray: img=self._cover_gray(img=img)
                 
 
-        n=num_line
+        n=num_color
         # count=0
         zuobiao=np.zeros((self.num_x,n+1))
         #提取颜色
@@ -391,33 +417,17 @@ class ImgFigure:
                         self.y2-int(0.00*(self.y2-self.y1)),
                         self.x1+int(0.00*(self.x2-self.x1)):
                         self.x2-int(0.00*(self.x2-self.x1))]
-        colors=color_clustering(img_cut,n)
+        colors=color_clustering(img_cut,n,mode=mode)
         print("colors found:")
         print(pd.DataFrame(colors).to_markdown())
-        # colors=newcolor(img[y1:y2,x1:x2],n)
+        return colors
 
-        #print(f"sil_score:{pd.DataFrame({i:color_clustering(img_cut,i) for i in tqdm(range(2,11))}).to_markdown()}")
-        color_range=np.zeros((2*n,3))
-
-        """color_img = np.zeros((100, 100, 3), np.uint8)
-        '''长得像层析色谱的东西'''
-        # 画色图()
-        top_colors=colors
-        for i, color in enumerate(top_colors):
-            color_rgb = cv2.cvtColor(np.uint8([[color]]), cv2.COLOR_HSV2RGB)[0][0] #很重要
-            #color_rgb=ImageColor.getrgb(f"hsv({color[0]},{color[1]/255:%},{color[2]/255:%})")
-            a=100//len(top_colors)
-            color_img[:, i*a:(i+1)*a] = color_rgb"""
-                
-                #提取颜色对应的曲线
-        img1=img.copy()[self.y1+int(0.00*(self.y2-self.y1)):
+    def find_line_from_color(self,color,img=None):
+        '''color:hexRGB'''
+        if img is None: img=self.img.copy()[self.y1+int(0.00*(self.y2-self.y1)):
                         self.y2-int(0.00*(self.y2-self.y1)),
                         self.x1+int(0.00*(self.x2-self.x1)):
                         self.x2-int(0.00*(self.x2-self.x1))]
-        blank_image = 255 * np.ones(img1.shape, np.uint8)
-        
-
-
         def mymean(data):
             '''移植来的不知道什么神秘函数'''
             data=np.array(data)
@@ -431,8 +441,80 @@ class ImgFigure:
                 return mean1        
             else:
                 return np.mean(data) #空值返回1，对应0
+            
+        '''if v<46 or h+s+v < 60:
+            lower=np.array([0,0,0])
+            upper=np.array([180,255,46])
+            print('black')
+        elif s<43 and v>46:
+            lower=np.array([0,0,46])
+            upper=np.array([180,46,220])
+            print('gray')
+        else:
+            lower=np.array([max(0,h-10),43,46])
+            upper=np.array([min(h+10,180),255,255])
+        mask = cv2.inRange(hsv, lower, upper)
+        # print(lower, upper)
+'''
+        mask=self.getColorMask(img=img,color=color)
+        data=np.where(mask!=0)
+        x=data[1]
+        y=data[0]
+        if len(y)==0:
+            return {}
+        xishu=self.value_x/self.num_x
+        res_x=xishu * x + self.x1_value #x变换为标准波长
 
-        hsv = cv2.cvtColor(img1, cv2.COLOR_BGR2HSV)
+        zhishu=self.value_y/self.num_y 
+        res_y=zhishu * y + self.y1_value #y变化，主要是将底部归零
+
+        unique_nums = np.unique(res_x) 
+        zuobiao=[]
+        for num in unique_nums:
+            # rows = y[res_x == num] # 获取第一列数字等于num的行的第二列数据
+            rows = res_y[res_x == num] # 获取第一列数字等于num的行的第二列数据
+            # avg=max(rows)
+            avg = mymean(rows) # 计算第二列的平均值
+            # avg = np.mean(rows) # 计算第二列的平均值
+            zuobiao.append((int(num),avg))
+
+        # plt.scatter([d[0] for d in zuobiao], [d[1] for d in zuobiao])
+        dianzhen=np.array(zuobiao).T
+        # dianzhen=np.array(sorted(zuobiao, key=lambda x: x[0], reverse=True)).T #没用的代码
+        value=dianzhen[1]
+        sum_abs_diff = 0  # 初始和为0
+        for i in range(len(value)-1):
+            sum_abs_diff += abs(value[i] - value[i+1])  # 计算相邻两个数之间的绝对值查并累加到和中
+        print('disorder:'+str(sum_abs_diff))  #
+        if sum_abs_diff <50:
+            return({x:y for x,y in zuobiao})
+        return{}
+
+    def find_lines(self,num_line=3,img=None,cover_gray=True):
+        #TODO 把挑线功能与调颜色拆了然后可以按颜色单独挑线
+        if img is None: img=self.img.copy()
+        colors=self.find_colors(num_color=num_line,img=img,cover_gray=cover_gray,mode="hsv")
+        # colors=newcolor(img[y1:y2,x1:x2],n)
+
+        #print(f"sil_score:{pd.DataFrame({i:color_clustering(img_cut,i) for i in tqdm(range(2,11))}).to_markdown()}")
+        #color_range=np.zeros((2*n,3))
+
+        """color_img = np.zeros((100, 100, 3), np.uint8)
+        '''长得像层析色谱的东西'''
+        # 画色图()
+        top_colors=colors
+        for i, color in enumerate(top_colors):
+            color_rgb = cv2.cvtColor(np.uint8([[color]]), cv2.COLOR_HSV2RGB)[0][0] #很重要
+            #color_rgb=ImageColor.getrgb(f"hsv({color[0]},{color[1]/255:%},{color[2]/255:%})")
+            a=100//len(top_colors)
+            color_img[:, i*a:(i+1)*a] = color_rgb"""
+                
+        img1=img.copy()[self.y1+int(0.00*(self.y2-self.y1)):
+                        self.y2-int(0.00*(self.y2-self.y1)),
+                        self.x1+int(0.00*(self.x2-self.x1)):
+                        self.x2-int(0.00*(self.x2-self.x1))]
+        #blank_image = 255 * np.ones(img1.shape, np.uint8)
+        #hsv = cv2.cvtColor(img1, cv2.COLOR_BGR2HSV)
 
         #count=0
         point_map={}
@@ -443,57 +525,9 @@ class ImgFigure:
             print(ImageColor.getrgb(f"hsv({h*2},{s/255:%},{v/255:%})"))
             hexRGB='#{:02x}{:02x}{:02x}'.format(*ImageColor.getrgb(f"hsv({h*2},{s/255:%},{v/255:%})"))
             point_map.setdefault(hexRGB,{})
-            '''if v<46 or h+s+v < 60:
-                lower=np.array([0,0,0])
-                upper=np.array([180,255,46])
-                print('black')
-            elif s<43 and v>46:
-                lower=np.array([0,0,46])
-                upper=np.array([180,46,220])
-                print('gray')
-            else:
-                lower=np.array([max(0,h-10),43,46])
-                upper=np.array([min(h+10,180),255,255])
-            mask = cv2.inRange(hsv, lower, upper)
-            # print(lower, upper)
-'''
-            mask=self.getColorMask(img=img1,color=hexRGB)
-            data=np.where(mask!=0)
-            x=data[1]
-            y=data[0]
-            if len(y)==0:
-                continue
-            xishu=self.value_x/self.num_x
-            res_x=xishu * x + self.x1_value #x变换为标准波长
-
-            zhishu=self.value_y/self.num_y 
-            res_y=zhishu * y + self.y1_value #y变化，主要是将底部归零
-
-
-
-            unique_nums = np.unique(res_x) 
-            zuobiao=[]
-            for num in unique_nums:
-                # rows = y[res_x == num] # 获取第一列数字等于num的行的第二列数据
-                rows = res_y[res_x == num] # 获取第一列数字等于num的行的第二列数据
-                # avg=max(rows)
-                avg = mymean(rows) # 计算第二列的平均值
-                # avg = np.mean(rows) # 计算第二列的平均值
-                zuobiao.append((int(num),avg))
-
-            # plt.scatter([d[0] for d in zuobiao], [d[1] for d in zuobiao])
-            dianzhen=np.array(zuobiao).T
-            # dianzhen=np.array(sorted(zuobiao, key=lambda x: x[0], reverse=True)).T #没用的代码
-            value=dianzhen[1]
-            sum_abs_diff = 0  # 初始和为0
-            for i in range(len(value)-1):
-                sum_abs_diff += abs(value[i] - value[i+1])  # 计算相邻两个数之间的绝对值查并累加到和中
-            print('disorder:'+str(sum_abs_diff))  #
-            if sum_abs_diff <50:
-                '''plt.scatter(dianzhen[0],dianzhen[1],c=[np.array(ImageColor.getrgb(f"hsv({h*2},{s/255:%},{v/255:%})"))/255])
-                # plt.show()  #唉plt唉plt唉plt唉plt唉plt唉plt唉plt唉plt唉plt唉plt唉plt唉plt唉plt唉plt唉plt唉plt唉plt
-                count+=1'''
-                point_map[hexRGB].update({x:y for x,y in zuobiao})
+            line_dict=self.find_line_from_color(color=hexRGB,img=img1)
+            if line_dict is None or len(line_dict)==0:continue
+            point_map[hexRGB].update(line_dict)
                 # save_to_csv(dianzhen[0], dianzhen[1], img_path,count) #保存为csv
                 
             # save_to_csv(res_x, res_y, img_path,i) #保存为csv #没用
@@ -517,8 +551,8 @@ class ImgFigure:
     def getColorMask(self,img=None,color:QColor|tuple[int,int,int]|str="#ffffff",threshold=5):
         if img is None: img=self.img.copy()
 
-        if type(color)==type(QColor()): color=_qcolortoHEX(color)
-        if type(color)==type(""): color=_hextoRGB(color)
+        if type(color)==QColor: color=_qcolortoHEX(color)
+        if type(color)==str: color=_hextoRGB(color)
 
 
         color = cv2.cvtColor(np.uint8([[color]]), cv2.COLOR_RGB2HSV)[0][0]
@@ -527,17 +561,17 @@ class ImgFigure:
 
         hsv= cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         h,s,v=tuple(color)
-        if v<46 or h+s+v < 60:
+        if v<56 or h+s+v < 60:
                 lower=np.array([0,0,0])
-                upper=np.array([180,255,46])
+                upper=np.array([180,255,56])
                 #print('black')
-        elif s<43 and v>46:
-                lower=np.array([0,0,46])
+        elif s<43 and v>56:
+                lower=np.array([0,0,56])
                 upper=np.array([180,46,220])
                 #print('gray')
         else:
-                lower=np.array([max(0,h-threshold),43,46])
-                upper=np.array([min(h+threshold,180),255,255])
+                lower=np.array([max(0,h-threshold),43,max(56,v-3*threshold)])
+                upper=np.array([min(h+threshold,180),255,min(v+3*threshold,255)])
         mask = cv2.inRange(hsv, lower, upper)
         return mask
     

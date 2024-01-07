@@ -77,15 +77,15 @@ class DoubleLineEdit(QWidget):
             # 返回两个输入框的内容并隐藏输入框
             left_text = self.left_edit.text()
             right_text = self.right_edit.text()
-            print(left_text, right_text)
+            print(f"recording pos ({left_text}, {right_text})")
             try:
                 assert  not(self.showpos is None)
                 self.append((QPoint(self.showpos),(float(left_text),float(right_text))))
             except Exception as e:
-                print("failed to record pos")
+                print(f"failed to record pos({left_text}, {right_text})")
                 print(f"[{e.__class__.__name__}] {e}")
             self.hide()
-            print(self.saved)
+            print(f"saved data: {self.saved}")
             '''elif event.key() == Qt.Key.Key_Tab:
             print("left edit focus set")
             # 切换焦点到左侧输入框
@@ -113,6 +113,7 @@ class DoubleLineEdit(QWidget):
             p2,(x2v,y2v)=self.saved[0]
             #print(p1,(x1v,y1v),p2,(x2v,y2v))
             self.connectedslot(p1,p2,(x1v,y1v),(x2v,y2v))
+            print("New map from graph updated")
 
 
 '''class MainWindow(QMainWindow):
