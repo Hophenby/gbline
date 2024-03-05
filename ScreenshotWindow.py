@@ -166,7 +166,7 @@ class ScreenshotLabel(QLabel):
         
         painter.setPen(QPen(Qt.GlobalColor.red, 2, Qt.PenStyle.SolidLine))
         painter.drawRect(self.rect())
-        print(self.end_pos)
+        #print(self.end_pos)
         if self.end_pos:
             mousePos=(self.end_pos)
             x,y=mousePos.x(), mousePos.y()

@@ -61,7 +61,7 @@ class GrabitLine:
             self.append(data=p0,graphdata=self.graphPos_(p0.x(),p0.y()),erased=erased)
         if p1 is None: p1=self.lastnode().data
         gdata0,gdata1=self.graphPos_(p0.x(),p0.y()),self.graphPos_(p1.x(),p1.y())
-        pad_num=int(np.abs(gdata0[0]-gdata1[0])*6+1)    #TODO 太强暴了 优化
+        pad_num=int(np.abs(gdata0[0]-gdata1[0])*2+1)    #TODO 太强暴了 优化
         x=np.linspace(p0.x(),p1.x(),pad_num,dtype=np.int32)
         y=np.linspace(p0.y(),p1.y(),pad_num,dtype=np.int32)
         gx=np.linspace(gdata0[0],gdata1[0],pad_num,dtype=np.int32)
@@ -119,10 +119,14 @@ class GrabitLine:
         if condition is None:   condition=lambda x:True
         current = self.head
         while current:
-            if condition(current.data):
-                if current.next:
+            '''if condition(current.data):
+                if current.next and condition(current.next.data):
                     painter.drawLine(current.data,current.next.data)
                 #painter.setPen()
+                    painter.drawPoint(current.data)'''
+            if current.next and condition(current.next.data):
+                painter.drawLine(current.data,current.next.data)
+            #painter.setPen()
                 painter.drawPoint(current.data)
             current = current.next
 

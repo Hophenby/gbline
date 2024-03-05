@@ -556,14 +556,18 @@ class RectLabel(QLabel):
     def grabPaintEvent(self,painter:QPainter):
 
         if self.keyStates.get(Qt.Key.Key_Shift)==KEY_HOLDING:
-             painter.drawPixmap(
-                  self.pixmapRect,
-                  QPixmap.fromImage(QImage(
-                       self.imgFigure.getMaskedImg(self.grabbingColor).data, 
-                       self.imgFigure.getWidth(), 
-                       self.imgFigure.getHeight(), 
-                       self.imgFigure.getBytesPerLine(),
-                       QImage.Format.Format_RGB888)))
+            try:
+                painter.drawPixmap(
+                    self.pixmapRect,
+                    QPixmap.fromImage(QImage(
+                        self.imgFigure.getMaskedImg(self.grabbingColor).data, 
+                        self.imgFigure.getWidth(), 
+                        self.imgFigure.getHeight(), 
+                        self.imgFigure.getBytesPerLine(),
+                        QImage.Format.Format_RGB888)))
+            except Exception as e:
+                print(f"[{e.__class__.__name__}] {e}")
+                painter.drawPixmap(self.pixmapRect,self.pixmap())
         else:painter.drawPixmap(self.pixmapRect,self.pixmap())
         if self.flag_Grabbing: 
             
